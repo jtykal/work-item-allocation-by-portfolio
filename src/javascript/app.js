@@ -13,9 +13,11 @@ Ext.define("work-item-allocation-by-portfolio", {
 
     config: {
         defaultSettings: {
-            portfolioItemType: null
+            portfolioItemType: null,
+            calculationType: "count"
         }
     },
+    exportDebug: false,
     MAX_FILTERS: 50,
     chartColors: [
         Rally.util.Colors.grey1,
@@ -64,7 +66,10 @@ Ext.define("work-item-allocation-by-portfolio", {
         return this.down('#display_box');
     },
     getFilters: function(){
-        var filters = [];
+        var filters = [{
+            property: 'DirectChildrenCount',
+            value: 0
+        }];
 
         if (this.getContext().getTimeboxScope()){
             filters.push(this.getContext().getTimeboxScope().getQueryFilter());
@@ -213,11 +218,6 @@ Ext.define("work-item-allocation-by-portfolio", {
                 ancestor = this.getPortfolioAncestorKey(piLevel, feature, obj.portfolioItems, dataMap),
                 key = ancestor;
 
-            if (w.get('FormattedID') === "US2307"){
-                console.log('checkme', w, ancestor, key);
-            }
-
-
             if (Ext.isObject(ancestor)){
                 debug.push([w.get('FormattedID'), key.FormattedID].join(','));
                 key = ancestor.ObjectID;
@@ -236,7 +236,7 @@ Ext.define("work-item-allocation-by-portfolio", {
         }, this);
 
 
-        if (debug){
+        if (debug && this.exportDebug){
             CArABU.technicalservices.Exporter.saveAs(debug.join('\r\n'),"debugexport.csv")
         }
         this.buildChart(portfolioHash);
@@ -311,7 +311,7 @@ Ext.define("work-item-allocation-by-portfolio", {
         return this.getUnitValue() === "count" ? "stories" : "points";
     },
     getUnitValue: function(){
-        return "count";
+        return this.getSetting('calculationType') || "count";
     },
     getChartConfig: function(){
         var units = "stories";
@@ -404,6 +404,16 @@ Ext.define("work-item-allocation-by-portfolio", {
             labelAlign: 'right',
             valueField: 'TypePath',
             labelWidth: 200
+        },{
+            xtype: 'rallycombobox',
+            name: 'calculationType',
+            fieldLabel: 'Calculation Type',
+            labelAlign: 'right',
+            labelWidth: 200,
+            store: Ext.create('Rally.data.custom.Store',{
+                fields: ['_ref','_refObjectName'],
+                data: [{_ref: "count", _refObjectName: "Story Count"},{_ref: "points", _refObjectName: "Sum of Story Points"}]
+            })
         }];
     },
     getOptions: function() {

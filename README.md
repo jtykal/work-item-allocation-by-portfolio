@@ -2,7 +2,21 @@
 
 ## Summary/Description
 
-![screenshot](./images/screenshot.png "This is an example")
+Pie chart of allocation of "leaf" stories (Stories with no story children) in the currently selected Project Scope by portfolio item.  
+
+Allocation can be calculated by leaf story count or sum of leaf story plan estimate.
+
+This will work on an Iteration scoped or Release scoped dashboard.  
+
+Only stories that are "Leaf Stories" are included in the data set for determining allocation.  
+
+![screenshot](./images/work-item-allocation-by-portfolio.png)
+
+The portfolio item type that allocation is shown for is a configuration in the App Settings.  
+
+Allocation calculation type (count or points) is also configured in the app settings.  
+
+
 
 ## Development Notes
 
