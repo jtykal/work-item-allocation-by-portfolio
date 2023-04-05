@@ -14,6 +14,8 @@ Ext.define("work-item-allocation-by-portfolio", {
     config: {
         defaultSettings: {
             portfolioItemType: null,
+            releaseStartDate: null,
+            releaseEndDate: null,
             calculationType: "count"
         }
     },
@@ -49,50 +51,82 @@ Ext.define("work-item-allocation-by-portfolio", {
             scope: this
         });
     },
+
     initializeApp: function(portfolioItemTypes){
         this.portfolioItemTypes = portfolioItemTypes;
         if (this.validateSettings()){
             this.updateView();
         }
     },
+
     validateSettings: function(){
+        //this.logger.log('Dates are ', this.getSetting('releaseStartDate'), ' and ', this.getSetting('releaseEndDate'));
         if (!this.getSetting('portfolioItemType') || this.getPIBucketLevel() < 0){
             this.getDisplayBox().update({message: "Please configure a Portfolio Item Type in the App Settings."});
+            return false;
+        };
+        if (!this.getContext().getTimeboxScope() && (!this.getSetting('releaseStartDate') || !this.getSetting('releaseEndDate'))) {
+            this.getDisplayBox().update({message: "Please configure Release Start/End Dates in the App Settings."});
             return false;
         }
         return true;
     },
+
     getDisplayBox: function(){
         return this.down('#display_box');
     },
+
     getFilters: function(){
-        var filters = [{
-            property: 'DirectChildrenCount',
-            value: 0
-        }];
+        var filters;
+        var timebox_scope = this.getContext().getTimeboxScope();
 
-        if (this.getContext().getTimeboxScope()){
-            filters.push(this.getContext().getTimeboxScope().getQueryFilter());
+        if (timebox_scope) {
+            filters = [
+                {
+                    property: 'DirectChildrenCount',
+                    value: 0
+                }
+            ];
+            filters.push(timebox_scope.getQueryFilter());
         }
-
+        else {
+            filters = [
+                {
+                    property: 'DirectChildrenCount',
+                    value: 0
+                },
+                {
+                    property: 'AcceptedDate',
+                    operator: '>=',
+                    value: this.getSetting('releaseStartDate')
+                },
+                {
+                    property: 'AcceptedDate',
+                    operator: '<=',
+                    value: this.getSetting('releaseEndDate')
+                }
+            ];
+        };
         if (filters.length > 1){
             filters = Rally.data.wsapi.Filter.and(filters);
         }
         this.logger.log('getFilters', filters, filters.toString());
         return filters;
     },
+
     getPortfolioName: function(){
         return this.portfolioItemTypes[0].typePath.replace('PortfolioItem/','');
     },
+
     getFetchList: function(){
-        return [this.getPortfolioName(),'ObjectID','FormattedID','Parent','Name','PlanEstimate'];
+        return [this.getPortfolioName(),'ObjectID','FormattedID','Parent','Name','PlanEstimate','AcceptedDate'];
     },
+
     getPortfolioFetchList: function(){
         return ['ObjectID','FormattedID','Parent','Name'];
     },
 
     updateView: function(){
-
         this.setLoading(true);
         Deft.Chain.pipeline([
             this.fetchWorkItems,
@@ -103,6 +137,7 @@ Ext.define("work-item-allocation-by-portfolio", {
             scope: this
         }).always(function(){ this.setLoading(false); },this);
     },
+
     fetchPortfolioItems: function(records){
 
         var featureField = this.getPortfolioName(),
@@ -183,6 +218,7 @@ Ext.define("work-item-allocation-by-portfolio", {
         }
         return deferred.promise;
     },
+
     getPIBucketLevel: function(){
         var index = -1;
         var type = this.getPortfolioItemType();
@@ -194,12 +230,15 @@ Ext.define("work-item-allocation-by-portfolio", {
         }
         return index;
     },
+
     getPortfolioItemTypes: function(){
         return this.portfolioItemTypes;
     },
+
     getPortfolioItemType: function(){
         return this.getSetting('portfolioItemType');
     },
+
     /**
      * processItems - lets take all the data we gathered and make it into a series for the pie chart
      * @param obj
@@ -240,8 +279,8 @@ Ext.define("work-item-allocation-by-portfolio", {
             CArABU.technicalservices.Exporter.saveAs(debug.join('\r\n'),"debugexport.csv")
         }
         this.buildChart(portfolioHash);
-
     },
+
     getPortfolioAncestorKey: function(ancestorLevel, featureObj, portfolioItems){
         //this.logger.log('getPortfolioAncestorKey', ancestorLevel, featureObj, portfolioItems);
 
@@ -264,6 +303,7 @@ Ext.define("work-item-allocation-by-portfolio", {
         }
         return ancestor;
     },
+
     buildChart: function(portfolioHash, dataMap){
         this.logger.log('buildChart', portfolioHash, dataMap);
 
@@ -303,16 +343,20 @@ Ext.define("work-item-allocation-by-portfolio", {
         });
 
     },
+
     getPortfolioItemTypeName: function(){
         var piLevel = this.getPIBucketLevel();
         return this.portfolioItemTypes[piLevel] && this.portfolioItemTypes[piLevel].name;
     },
+
     getUnitLabel: function(){
         return this.getUnitValue() === "count" ? "stories" : "points";
     },
+
     getUnitValue: function(){
         return this.getSetting('calculationType') || "count";
     },
+
     getChartConfig: function(){
         var units = "stories";
 
@@ -356,9 +400,11 @@ Ext.define("work-item-allocation-by-portfolio", {
             }
         };
     },
+
     showErrorNotification: function(msg){
         Rally.ui.notify.Notifier.showError({message: msg});
     },
+
     fetchWorkItems: function(){
         var deferred = Ext.create('Deft.Deferred');
         this.logger.log('fetchWorkItems',this.getFilters().toString());
@@ -378,9 +424,11 @@ Ext.define("work-item-allocation-by-portfolio", {
         });
         return deferred.promise;
     },
+
     getTimeboxScope: function(){
         return this.getContext().getTimeboxScope();
     },
+
     /**
      *
      * @param timeboxScope
@@ -396,26 +444,53 @@ Ext.define("work-item-allocation-by-portfolio", {
             this.updateView();
         }
     },
+
     getSettingsFields: function(){
-        return [{
-            xtype: 'rallyportfolioitemtypecombobox',
-            name: 'portfolioItemType',
-            fieldLabel: 'Portfolio Item Type',
-            labelAlign: 'right',
-            valueField: 'TypePath',
-            labelWidth: 200
-        },{
-            xtype: 'rallycombobox',
-            name: 'calculationType',
-            fieldLabel: 'Calculation Type',
-            labelAlign: 'right',
-            labelWidth: 200,
-            store: Ext.create('Rally.data.custom.Store',{
-                fields: ['_ref','_refObjectName'],
-                data: [{_ref: "count", _refObjectName: "Story Count"},{_ref: "points", _refObjectName: "Sum of Story Points"}]
-            })
-        }];
+        return [
+            {
+                xtype: 'rallyportfolioitemtypecombobox',
+                name: 'portfolioItemType',
+                fieldLabel: 'Portfolio Item Type',
+                labelAlign: 'right',
+                valueField: 'TypePath',
+                labelWidth: 200
+            },
+            {
+                xtype: 'rallycombobox',
+                name: 'calculationType',
+                fieldLabel: 'Calculation Type',
+                labelAlign: 'right',
+                labelWidth: 200,
+                store: Ext.create('Rally.data.custom.Store',{
+                    fields: ['_ref','_refObjectName'],
+                    data: [{_ref: "count", _refObjectName: "Story Count"},{_ref: "points", _refObjectName: "Sum of Story Points"}]
+                })
+            },
+            {
+                xtype: 'label',
+                forId: 'releaseDateText',
+                text: 'NOTE: Release Start/End Dates are IGNORED if Page is Timebox Filtered!',
+                margin: '0 0 0 0'
+            },
+            {
+                xtype: 'datefield',
+                name: 'releaseStartDate',
+                fieldLabel: 'Release Start Date',
+                format: 'Y-m-d',
+                labelAlign: 'right',
+                labelWidth: 200
+            },
+            {
+                xtype: 'datefield',
+                name: 'releaseEndDate',
+                fieldLabel: 'Release End Date',
+                format: 'Y-m-d',
+                labelAlign: 'right',
+                labelWidth: 200
+            }
+        ];
     },
+
     getOptions: function() {
         return [
             {
@@ -425,13 +500,16 @@ Ext.define("work-item-allocation-by-portfolio", {
             }
         ];
     },
+
     _launchInfo: function() {
         if ( this.about_dialog ) { this.about_dialog.destroy(); }
         this.about_dialog = Ext.create('Rally.technicalservices.InfoLink',{});
     },
+
     isExternal: function(){
         return typeof(this.getAppId()) == 'undefined';
     },
+
     /**
      * fetchPortfolioItemTypes
      * @returns {Deft.promise|*|r.promise|promise}
@@ -477,6 +555,7 @@ Ext.define("work-item-allocation-by-portfolio", {
         });
         return deferred.promise;
     },
+
     /**
      * fetchWsapiRecords
      * @param config
@@ -498,5 +577,4 @@ Ext.define("work-item-allocation-by-portfolio", {
         });
         return deferred;
     }
-    
 });
