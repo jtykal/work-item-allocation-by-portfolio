@@ -6,16 +6,25 @@ Pie chart of allocation of "leaf" stories (Stories with no story children) in th
 
 Allocation can be calculated by leaf story count or sum of leaf story plan estimate.
 
-This will work on an Iteration scoped or Release scoped dashboard.  
+This will work on an Iteration filtered or Release filtered page. In lieu of using a Timebox filtered page, the App Settings support 
+explicitly specifying a Release Start Date and a Release End Date. In this case, User Stories in the currently selected Project Scope
+that have an "Accepted Date" between the specified Release Start Date and Release End Date will be included. This makes this App
+useful for Projects that do not explicitly set the Release (or Iteration) attribute at the User Story level (such as Kanban teams).
 
 Only stories that are "Leaf Stories" are included in the data set for determining allocation.  
 
 ![screenshot](./images/work-item-allocation-by-portfolio.png)
 
-The portfolio item type that allocation is shown for is a configuration in the App Settings.  
+App Settings
+    * The portfolio item type that allocation is shown for is a configuration in the App Settings.  
+    * Allocation calculation type (count or points) is also configured in the app settings.  
+    * Release Start Date and Release End Date can be specified if the Page does not use Timebox filters.
 
-Allocation calculation type (count or points) is also configured in the app settings.  
-
+The data represented is different when using explicit dates versus using the Timebox filters:
+    * If the page is Timebox filtered, ANY User Story associated with the specified Release or Iteration
+      is included in the data set -- regardless of its Schedule State.
+    * If the page is not Timebox filtered, you must specify a Release Start Date and Release End Date in the
+      App Settings. A User Story is included in the data set ONLY IF it has been ACCEPTED between these dates.
 
 
 ## Development Notes
