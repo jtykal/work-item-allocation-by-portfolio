@@ -22,7 +22,7 @@ Ext.define("work-item-allocation-by-portfolio", {
     exportDebug: false,
     MAX_FILTERS: 50,
     chartColors: [
-        Rally.util.Colors.grey1,
+        Rally.util.Colors.grey5,
         Rally.util.Colors.brick,
         Rally.util.Colors.lime,
         Rally.util.Colors.blue,
@@ -88,13 +88,20 @@ Ext.define("work-item-allocation-by-portfolio", {
                 }
             ];
             filters.push(timebox_scope.getQueryFilter());
+            if (filters.length > 1){
+                filters = Rally.data.wsapi.Filter.and(filters);
+            };
         }
         else {
-            filters = [
-                {
+            this.logger.log('starting to build DATE filters');
+            var filter1 = Ext.create('Rally.data.wsapi.Filter', {
                     property: 'DirectChildrenCount',
+                    operator: '=',
                     value: 0
-                },
+            });
+            this.logger.log('filter1 ', filter1, filter1.toString());
+
+            var filter2 = [
                 {
                     property: 'AcceptedDate',
                     operator: '>=',
@@ -106,10 +113,27 @@ Ext.define("work-item-allocation-by-portfolio", {
                     value: this.getSetting('releaseEndDate')
                 }
             ];
+            var filter3 = [
+                {
+                    property: 'InProgressDate',
+                    operator: '>=',
+                    value: this.getSetting('releaseStartDate')
+                },
+                {
+                    property: 'InProgressDate',
+                    operator: '<=',
+                    value: this.getSetting('releaseEndDate')
+                }
+            ];
+            filter2 = Rally.data.wsapi.Filter.and(filter2);  //((AcceptedDate >= releaseStartDate) AND (AcceptedDate <= releaseEndDate))
+            this.logger.log('filter2 ', filter2, filter2.toString());
+            filter3 = Rally.data.wsapi.Filter.and(filter3);  //(InProgressDate )>= releaseStartDate) AND (InProgressDate <= releaseEndDate))
+            this.logger.log('filter3 ', filter3, filter3.toString());
+            var filter4 = filter2.or(filter3);
+            this.logger.log('filter4 ', filter4, filter4.toString());
+            filters = filter1.and(filter4);
         };
-        if (filters.length > 1){
-            filters = Rally.data.wsapi.Filter.and(filters);
-        }
+        
         this.logger.log('getFilters', filters, filters.toString());
         return filters;
     },
@@ -119,7 +143,7 @@ Ext.define("work-item-allocation-by-portfolio", {
     },
 
     getFetchList: function(){
-        return [this.getPortfolioName(),'ObjectID','FormattedID','Parent','Name','PlanEstimate','AcceptedDate'];
+        return [this.getPortfolioName(),'ObjectID','FormattedID','Parent','Name','PlanEstimate','AcceptedDate','InProgressDate'];
     },
 
     getPortfolioFetchList: function(){
@@ -318,7 +342,7 @@ Ext.define("work-item-allocation-by-portfolio", {
                     y: obj[unitType]
                 });
             } else {
-                //Put the none at the beginning of the pack so it aligns with the gray color
+                //Put the 'None' at the beginning of the pack so it aligns with the gray color
                 data.unshift({
                     name: name,
                     y: obj[unitType]
