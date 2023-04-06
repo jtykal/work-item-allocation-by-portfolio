@@ -24,7 +24,7 @@ App Settings
 The data represented is different when using explicit dates versus using the Timebox filters:
 
  * If the page is Timebox filtered, ANY User Story associated with the specified Release or Iteration is included in the data set -- regardless of its Schedule State. (Release Start Date and Release End Date in App Settings are ignored if the page is filtered.)
- * If the page is not Timebox filtered, you must specify a Release Start Date and Release End Date in the App Settings. A User Story is included in the data set ONLY IF it has been ACCEPTED between these dates.
+ * If the page is not Timebox filtered, you must specify a Release Start Date and Release End Date in the App Settings. A User Story is included in the data set ONLY IF it has been moved to IN PROGRESS and/or ACCEPTED between these dates.
 
 
 ## Development Notes
