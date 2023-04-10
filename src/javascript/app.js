@@ -110,7 +110,7 @@ Ext.define("work-item-allocation-by-portfolio", {
             startDate = this.adjustDate(startDate);
             endDate = this.adjustDate(endDate);
 
-            this.logger.log('ADJUSTED dates: ', startDate, endDate);
+            //this.logger.log('ADJUSTED dates: ', startDate, endDate);
         }
         else {
             // GET DATES FROM THE APP SETTINGS
@@ -167,7 +167,7 @@ Ext.define("work-item-allocation-by-portfolio", {
         const utcYear = isoDate.getUTCFullYear();
         const utcMonth = isoDate.getUTCMonth()+1;
         const utcDay = isoDate.getUTCDate();
-        this.logger.log('month day year is ',utcYear, utcMonth, utcDay);
+        //this.logger.log('month day year is ',utcYear, utcMonth, utcDay);
 
         const yyyy = utcYear;
         const mm = utcMonth.toString().padStart(2, "0");
@@ -307,7 +307,7 @@ Ext.define("work-item-allocation-by-portfolio", {
      * @param obj
      */
     processItems: function(obj){
-        this.logger.log('processWorkItems', obj);
+        this.logger.log('processItems', obj);
 
         var featureField = this.getPortfolioName(),
             portfolioHash = {},
@@ -543,7 +543,7 @@ Ext.define("work-item-allocation-by-portfolio", {
             },
             {
                 xtype: 'label',
-                text: 'NOTE: These Dates are IGNORED if Page is Timebox Filtered!',
+                text: 'NOTE: These Dates are IGNORED if page-level filter is used!',
                 margin: '0 0 0 0'
             },
             {
