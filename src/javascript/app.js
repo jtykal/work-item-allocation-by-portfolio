@@ -14,6 +14,7 @@ Ext.define("work-item-allocation-by-portfolio", {
     config: {
         defaultSettings: {
             portfolioItemType: null,
+            strictReleaseFilter: false,
             releaseStartDate: null,
             releaseEndDate: null,
             calculationType: "count"
@@ -60,7 +61,7 @@ Ext.define("work-item-allocation-by-portfolio", {
     },
 
     validateSettings: function(){
-        //this.logger.log('Dates are ', this.getSetting('releaseStartDate'), ' and ', this.getSetting('releaseEndDate'));
+        this.logger.log('validateSettings()');
         if (!this.getSetting('portfolioItemType') || this.getPIBucketLevel() < 0){
             this.getDisplayBox().update({message: "Please configure a Portfolio Item Type in the App Settings."});
             return false;
@@ -79,63 +80,101 @@ Ext.define("work-item-allocation-by-portfolio", {
     getFilters: function(){
         var filters;
         var timebox_scope = this.getContext().getTimeboxScope();
+        var startDate, endDate;
 
         if (timebox_scope) {
-            filters = [
-                {
-                    property: 'DirectChildrenCount',
-                    value: 0
+            if (this.getSetting('strictReleaseFilter') == true) {
+                this.logger.log('EXPLICIT RELEASE FILTERS');
+                filters = [
+                    {
+                        property: 'DirectChildrenCount',
+                        value: 0
+                    }
+                ];
+                // Filters for explicit inclusion of work items based on Release setting
+                filters.push(timebox_scope.getQueryFilter());
+                if (filters.length > 1){
+                    filters = Rally.data.wsapi.Filter.and(filters);
                 }
-            ];
-            filters.push(timebox_scope.getQueryFilter());
-            if (filters.length > 1){
-                filters = Rally.data.wsapi.Filter.and(filters);
+                return(filters);
             };
+
+            // GET DATES FROM THE RELEASE TIMEBOX
+            this.logger.log('IMPLICIT RELEASE DATE FILTERS');
+            var release_data = timebox_scope.record.getData();
+            //this.logger.log('release_data: ', release_data);
+            startDate = release_data.ReleaseStartDate;
+            endDate = release_data.ReleaseDate;
+
+            //get dates into a valid format for Rally API query
+            startDate = this.adjustDate(startDate);
+            endDate = this.adjustDate(endDate);
+
+            this.logger.log('ADJUSTED dates: ', startDate, endDate);
         }
         else {
-            this.logger.log('starting to build DATE filters');
-            var filter1 = Ext.create('Rally.data.wsapi.Filter', {
-                    property: 'DirectChildrenCount',
-                    operator: '=',
-                    value: 0
-            });
-            this.logger.log('filter1 ', filter1, filter1.toString());
+            // GET DATES FROM THE APP SETTINGS
+            this.logger.log('APP SETTING DATE FILTERS');
+            startDate = this.getSetting('releaseStartDate');
+            endDate = this.getSetting('releaseEndDate');
+        }
 
-            var filter2 = [
-                {
-                    property: 'AcceptedDate',
-                    operator: '>=',
-                    value: this.getSetting('releaseStartDate')
-                },
-                {
-                    property: 'AcceptedDate',
-                    operator: '<=',
-                    value: this.getSetting('releaseEndDate')
-                }
-            ];
-            var filter3 = [
-                {
-                    property: 'InProgressDate',
-                    operator: '>=',
-                    value: this.getSetting('releaseStartDate')
-                },
-                {
-                    property: 'InProgressDate',
-                    operator: '<=',
-                    value: this.getSetting('releaseEndDate')
-                }
-            ];
-            filter2 = Rally.data.wsapi.Filter.and(filter2);  //((AcceptedDate >= releaseStartDate) AND (AcceptedDate <= releaseEndDate))
-            this.logger.log('filter2 ', filter2, filter2.toString());
-            filter3 = Rally.data.wsapi.Filter.and(filter3);  //(InProgressDate )>= releaseStartDate) AND (InProgressDate <= releaseEndDate))
-            this.logger.log('filter3 ', filter3, filter3.toString());
-            var filter4 = filter2.or(filter3);
-            this.logger.log('filter4 ', filter4, filter4.toString());
-            filters = filter1.and(filter4);
-        };
+        //this.logger.log('starting to build DATE filters');
+        var filter1 = Ext.create('Rally.data.wsapi.Filter', {
+                property: 'DirectChildrenCount',
+                operator: '=',
+                value: 0
+        });
+        //this.logger.log('filter1 ', filter1, filter1.toString());
+
+        var filter2 = [
+            {
+                property: 'AcceptedDate',
+                operator: '>=',
+                value: startDate
+            },
+            {
+                property: 'AcceptedDate',
+                operator: '<=',
+                value: endDate
+            }
+        ];
+        var filter3 = [
+            {
+                property: 'ScheduleState',
+                operator: '!=',
+                value: 'Accepted'
+            },
+            {
+                property: 'InProgressDate',
+                operator: '<=',
+                value: endDate
+            }
+        ];
+        filter2 = Rally.data.wsapi.Filter.and(filter2);  //((AcceptedDate >= startDate) AND (AcceptedDate <= endDate))
+        //this.logger.log('filter2 ', filter2, filter2.toString());
+        filter3 = Rally.data.wsapi.Filter.and(filter3);  //(ScheduleState != Accepted) AND (InProgressDate <= endDate))
+        //this.logger.log('filter3 ', filter3, filter3.toString());
+        var filter4 = filter2.or(filter3);
+        //this.logger.log('filter4 ', filter4, filter4.toString());
+        filters = filter1.and(filter4);
         
-        this.logger.log('getFilters', filters, filters.toString());
+        //this.logger.log('getFilters', filters, filters.toString());
         return filters;
+    },
+
+    adjustDate: function(isoDate){
+        const utcYear = isoDate.getUTCFullYear();
+        const utcMonth = isoDate.getUTCMonth()+1;
+        const utcDay = isoDate.getUTCDate();
+        this.logger.log('month day year is ',utcYear, utcMonth, utcDay);
+
+        const yyyy = utcYear;
+        const mm = utcMonth.toString().padStart(2, "0");
+        const dd = utcDay.toString().padStart(2, "0");
+        const date = yyyy + '-' + mm + '-' + dd;
+
+        return date;
     },
 
     getPortfolioName: function(){
@@ -143,7 +182,7 @@ Ext.define("work-item-allocation-by-portfolio", {
     },
 
     getFetchList: function(){
-        return [this.getPortfolioName(),'ObjectID','FormattedID','Parent','Name','PlanEstimate','AcceptedDate','InProgressDate'];
+        return [this.getPortfolioName(),'ObjectID','FormattedID','Parent','Name','PlanEstimate','AcceptedDate','InProgressDate','ScheduleState'];
     },
 
     getPortfolioFetchList: function(){
@@ -492,8 +531,19 @@ Ext.define("work-item-allocation-by-portfolio", {
             },
             {
                 xtype: 'label',
-                forId: 'releaseDateText',
-                text: 'NOTE: Release Start/End Dates are IGNORED if Page is Timebox Filtered!',
+                text: 'By checking this box, only User Stories with the Release field explictly set will be included in the data',
+                margin: '0 0 0 0'
+            },
+            {
+                xtype: 'rallycheckboxfield',
+                name: 'strictReleaseFilter',
+                fieldLabel: 'Strict Release Filtering',
+                labelAlign: 'right',
+                labelWidth: 200
+            },
+            {
+                xtype: 'label',
+                text: 'NOTE: These Dates are IGNORED if Page is Timebox Filtered!',
                 margin: '0 0 0 0'
             },
             {
