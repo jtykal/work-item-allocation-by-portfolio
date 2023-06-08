@@ -14,6 +14,7 @@ Ext.define("work-item-allocation-by-portfolio", {
     config: {
         defaultSettings: {
             portfolioItemType: null,
+            includeInProgress: false,
             strictReleaseFilter: false,
             releaseStartDate: null,
             releaseEndDate: null,
@@ -70,6 +71,7 @@ Ext.define("work-item-allocation-by-portfolio", {
             this.getDisplayBox().update({message: "Please configure Release Start/End Dates in the App Settings."});
             return false;
         }
+        this.updateView();
         return true;
     },
 
@@ -139,27 +141,32 @@ Ext.define("work-item-allocation-by-portfolio", {
                 value: endDate
             }
         ];
-        var filter3 = [
-            {
-                property: 'ScheduleState',
-                operator: '!=',
-                value: 'Accepted'
-            },
-            {
-                property: 'InProgressDate',
-                operator: '<=',
-                value: endDate
-            }
-        ];
         filter2 = Rally.data.wsapi.Filter.and(filter2);  //((AcceptedDate >= startDate) AND (AcceptedDate <= endDate))
         //this.logger.log('filter2 ', filter2, filter2.toString());
-        filter3 = Rally.data.wsapi.Filter.and(filter3);  //(ScheduleState != Accepted) AND (InProgressDate <= endDate))
-        //this.logger.log('filter3 ', filter3, filter3.toString());
-        var filter4 = filter2.or(filter3);
-        //this.logger.log('filter4 ', filter4, filter4.toString());
-        filters = filter1.and(filter4);
-        
-        //this.logger.log('getFilters', filters, filters.toString());
+
+        // CHECK TO SEE IF THE USER WANTS ONLY WORK ACCEPTED DURING THE TIMEBOX, OR ANYTHING THAT WAS IN PROGRESS DURING THE TIMEBOX
+        if (this.getSetting('includeInProgress') == false) {
+            filters = filter1.and(filter2);
+        } else {
+            var filter3 = [
+                {
+                    property: 'ScheduleState',
+                    operator: '!=',
+                    value: 'Accepted'
+                },
+                {
+                    property: 'InProgressDate',
+                    operator: '<=',
+                    value: endDate
+                }
+            ];
+            filter3 = Rally.data.wsapi.Filter.and(filter3);  //(ScheduleState != Accepted) AND (InProgressDate <= endDate))
+            //this.logger.log('filter3 ', filter3, filter3.toString());
+            var filter4 = filter2.or(filter3);
+            //this.logger.log('filter4 ', filter4, filter4.toString());
+            filters = filter1.and(filter4);
+        }
+        this.logger.log('getFilters', filters, filters.toString());
         return filters;
     },
 
@@ -516,6 +523,18 @@ Ext.define("work-item-allocation-by-portfolio", {
                 fieldLabel: 'Portfolio Item Type',
                 labelAlign: 'right',
                 valueField: 'TypePath',
+                labelWidth: 200
+            },
+            {
+                xtype: 'label',
+                text: 'By default, only User Stories that were Accepted during the specified time period are included. If you also want to include any work that was In Progress during the specified time period, check this box',
+                margin: '0 0 0 0'
+            },
+            {
+                xtype: 'rallycheckboxfield',
+                name: 'includeInProgress',
+                fieldLabel: 'Include Work In Progress',
+                labelAlign: 'right',
                 labelWidth: 200
             },
             {
