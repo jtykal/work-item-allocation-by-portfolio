@@ -15,10 +15,11 @@ Ext.define("work-item-allocation-by-portfolio", {
         defaultSettings: {
             portfolioItemType: null,
             includeInProgress: false,
-            strictReleaseFilter: false,
+//            strictReleaseFilter: false,
             releaseStartDate: null,
             releaseEndDate: null,
-            calculationType: "count"
+            calculationType: "count",
+            query: ''
         }
     },
     exportDebug: false,
@@ -62,7 +63,7 @@ Ext.define("work-item-allocation-by-portfolio", {
     },
 
     validateSettings: function(){
-        this.logger.log('validateSettings()');
+        //this.logger.log('validateSettings()');
         if (!this.getSetting('portfolioItemType') || this.getPIBucketLevel() < 0){
             this.getDisplayBox().update({message: "Please configure a Portfolio Item Type in the App Settings."});
             return false;
@@ -71,7 +72,7 @@ Ext.define("work-item-allocation-by-portfolio", {
             this.getDisplayBox().update({message: "Please configure Release Start/End Dates in the App Settings."});
             return false;
         }
-        this.updateView();
+//        this.updateView();
         return true;
     },
 
@@ -84,50 +85,26 @@ Ext.define("work-item-allocation-by-portfolio", {
         var timebox_scope = this.getContext().getTimeboxScope();
         var startDate, endDate;
 
+        var filter1 = Ext.create('Rally.data.wsapi.Filter', {
+        property: 'DirectChildrenCount',
+        operator: '=',
+        value: 0
+        });
+
         if (timebox_scope) {
-            if (this.getSetting('strictReleaseFilter') == true) {
-                this.logger.log('EXPLICIT RELEASE FILTERS');
-                filters = [
-                    {
-                        property: 'DirectChildrenCount',
-                        value: 0
-                    }
-                ];
-                // Filters for explicit inclusion of work items based on Release setting
-                filters.push(timebox_scope.getQueryFilter());
-                if (filters.length > 1){
-                    filters = Rally.data.wsapi.Filter.and(filters);
-                }
-                return(filters);
-            };
-
             // GET DATES FROM THE RELEASE TIMEBOX
-            this.logger.log('IMPLICIT RELEASE DATE FILTERS');
             var release_data = timebox_scope.record.getData();
-            //this.logger.log('release_data: ', release_data);
-            startDate = release_data.ReleaseStartDate;
-            endDate = release_data.ReleaseDate;
-
             //get dates into a valid format for Rally API query
-            startDate = this.adjustDate(startDate);
-            endDate = this.adjustDate(endDate);
+            startDate = this.adjustDate(release_data.ReleaseStartDate);
+            endDate = this.adjustDate(release_data.ReleaseDate);
 
             //this.logger.log('ADJUSTED dates: ', startDate, endDate);
         }
         else {
             // GET DATES FROM THE APP SETTINGS
-            this.logger.log('APP SETTING DATE FILTERS');
             startDate = this.getSetting('releaseStartDate');
             endDate = this.getSetting('releaseEndDate');
         }
-
-        //this.logger.log('starting to build DATE filters');
-        var filter1 = Ext.create('Rally.data.wsapi.Filter', {
-                property: 'DirectChildrenCount',
-                operator: '=',
-                value: 0
-        });
-        //this.logger.log('filter1 ', filter1, filter1.toString());
 
         var filter2 = [
             {
@@ -166,7 +143,15 @@ Ext.define("work-item-allocation-by-portfolio", {
             //this.logger.log('filter4 ', filter4, filter4.toString());
             filters = filter1.and(filter4);
         }
-        this.logger.log('getFilters', filters, filters.toString());
+
+        if (this.getSetting('query')) {
+            var querySetting = this.getSetting('query').replace(/\{user\}/g, this.getContext().getUser()._ref);
+            var query_filter = Rally.data.QueryFilter.fromQueryString(querySetting);
+            //this.logger.log('query_filter is ', query_filter, query_filter.toString());
+            filters = filters.and(query_filter);
+        }
+
+        //this.logger.log('getFilters RETURNING', filters, filters.toString());
         return filters;
     },
 
@@ -217,7 +202,7 @@ Ext.define("work-item-allocation-by-portfolio", {
             };
 
         var piLevel = this.getPIBucketLevel();
-        this.logger.log('fetchPortfolioItems', piLevel);
+        //this.logger.log('fetchPortfolioItems', piLevel);
         if (piLevel === 0){
             //We have everything we need in the story record since we fetched feature and parent
             deferred.resolve(returnObj);
@@ -228,7 +213,7 @@ Ext.define("work-item-allocation-by-portfolio", {
                 }
                 return ar;
             }, []);
-            this.logger.log('fetchPortfolioItems featureOids', featureOids);
+            //this.logger.log('fetchPortfolioItems featureOids', featureOids);
             if (featureOids.length === 0) {
                 //None of the stories have features and we are done here
                 deferred.resolve(returnObj);
@@ -271,7 +256,7 @@ Ext.define("work-item-allocation-by-portfolio", {
                 }
                 Deft.Promise.all(promises).then({
                     success: function(results){
-                        this.logger.log('fetchPortfolioItems success', results);
+                        //this.logger.log('fetchPortfolioItems success', results);
                         returnObj.portfolioItems = [];
                         for (var i=0; i<piLevel; i++){
                             returnObj.portfolioItems[i] = _.reduce(results[i], function(hash, p){
@@ -314,26 +299,29 @@ Ext.define("work-item-allocation-by-portfolio", {
      * @param obj
      */
     processItems: function(obj){
-        this.logger.log('processItems', obj);
+        //this.logger.log('processItems', obj);
 
         var featureField = this.getPortfolioName(),
             portfolioHash = {},
             piLevel = this.getPIBucketLevel(),
-            dataMap = {},
-            debug = [];
+            dataMap = {};
+//            debug = [];
 
         Ext.Array.each(obj.workItems, function(w){
             var feature = w.get(featureField),
                 ancestor = this.getPortfolioAncestorKey(piLevel, feature, obj.portfolioItems, dataMap),
                 key = ancestor;
 
+//            this.logger.log('***PROCESSING*** US=',w.get('FormattedID'));
             if (Ext.isObject(ancestor)){
-                debug.push([w.get('FormattedID'), key.FormattedID].join(','));
+//                debug.push([w.get('FormattedID'), key.FormattedID].join(','));
                 key = ancestor.ObjectID;
-            } else {
-                debug.push([w.get('FormattedID'), key].join(','));
+//                this.logger.log('***MATCH*** US=',w.get('FormattedID'),' with PI',piLevel,'=',key);
+//            } else {
+//                debug.push([w.get('FormattedID'), key].join(','));
             }
             if (!portfolioHash[key]){
+//                this.logger.log('***CREATE HASH*** key=',key);
                 portfolioHash[key] = {
                     data: ancestor,
                     count: 0,
@@ -345,9 +333,9 @@ Ext.define("work-item-allocation-by-portfolio", {
         }, this);
 
 
-        if (debug && this.exportDebug){
-            CArABU.technicalservices.Exporter.saveAs(debug.join('\r\n'),"debugexport.csv")
-        }
+//        if (debug && this.exportDebug){
+//            CArABU.technicalservices.Exporter.saveAs(debug.join('\r\n'),"debugexport.csv")
+//        }
         this.buildChart(portfolioHash);
     },
 
@@ -375,7 +363,7 @@ Ext.define("work-item-allocation-by-portfolio", {
     },
 
     buildChart: function(portfolioHash, dataMap){
-        this.logger.log('buildChart', portfolioHash, dataMap);
+        //this.logger.log('buildChart', portfolioHash, dataMap);
 
         var data = [],
             unitType = this.getUnitValue();
@@ -395,7 +383,7 @@ Ext.define("work-item-allocation-by-portfolio", {
                 });
             }
         });
-        this.logger.log('buildChart', data);
+        //this.logger.log('buildChart', data);
 
         this.getDisplayBox().removeAll();
         this.getDisplayBox().add({
@@ -477,7 +465,7 @@ Ext.define("work-item-allocation-by-portfolio", {
 
     fetchWorkItems: function(){
         var deferred = Ext.create('Deft.Deferred');
-        this.logger.log('fetchWorkItems',this.getFilters().toString());
+        //this.logger.log('fetchWorkItems',this.getFilters().toString());
         Ext.create('Rally.data.wsapi.Store', {
             model: 'HierarchicalRequirement',
             filters: this.getFilters(),
@@ -548,18 +536,18 @@ Ext.define("work-item-allocation-by-portfolio", {
                     data: [{_ref: "count", _refObjectName: "Story Count"},{_ref: "points", _refObjectName: "Sum of Story Points"}]
                 })
             },
-            {
-                xtype: 'label',
-                text: 'By checking this box, only User Stories with the Release field explictly set will be included in the data',
-                margin: '0 0 0 0'
-            },
-            {
-                xtype: 'rallycheckboxfield',
-                name: 'strictReleaseFilter',
-                fieldLabel: 'Strict Release Filtering',
-                labelAlign: 'right',
-                labelWidth: 200
-            },
+//            {
+//                xtype: 'label',
+//                text: 'By checking this box, only User Stories with the Release field explictly set will be included in the data',
+//                margin: '0 0 0 0'
+//            },
+//            {
+//                xtype: 'rallycheckboxfield',
+//                name: 'strictReleaseFilter',
+//                fieldLabel: 'Strict Release Filtering',
+//                labelAlign: 'right',
+//                labelWidth: 200
+//            },
             {
                 xtype: 'label',
                 text: 'NOTE: These Dates are IGNORED if page-level filter is used!',
@@ -580,6 +568,9 @@ Ext.define("work-item-allocation-by-portfolio", {
                 format: 'Y-m-d',
                 labelAlign: 'right',
                 labelWidth: 200
+            },
+            {
+                type: 'query'
             }
         ];
     },
